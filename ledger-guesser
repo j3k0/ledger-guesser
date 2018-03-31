@@ -1,0 +1,41 @@
+#!/bin/bash
+if [ "x$1" = "x--train" ]; then
+  node "$(dirname $0)/index.js" --train journal.txt --index=0 > ~/.ledger-guesser-nn-0.json
+  node "$(dirname $0)/index.js" --train journal.txt --index=1 > ~/.ledger-guesser-nn-1.json
+  node "$(dirname $0)/index.js" --train journal.txt --index=2 > ~/.ledger-guesser-nn-2.json
+  node "$(dirname $0)/index.js" --train journal.txt --index=3 > ~/.ledger-guesser-nn-3.json
+  node "$(dirname $0)/index.js" --train journal.txt --index=4 > ~/.ledger-guesser-nn-4.json
+  node "$(dirname $0)/index.js" --train journal.txt --index=5 > ~/.ledger-guesser-nn-5.json
+  node "$(dirname $0)/index.js" --train journal.txt --index=6 > ~/.ledger-guesser-nn-6.json
+  node "$(dirname $0)/index.js" --train journal.txt --index=7 > ~/.ledger-guesser-nn-7.json
+  node "$(dirname $0)/index.js" --train journal.txt --index=8 > ~/.ledger-guesser-nn-8.json
+  node "$(dirname $0)/index.js" --train journal.txt --index=9 > ~/.ledger-guesser-nn-9.json
+else
+
+  PAYEE="$1"
+  AMOUNT="$2"
+  DATE="$3"
+  if [ "x$DATE" = x ]; then
+    DATE="$(date +%Y/%m/%d)"
+  fi
+
+  PAYEE="$(echo "$PAYEE" | awk '{print toupper($0)}')"
+  ACC_0=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-0.json "$PAYEE" "$AMOUNT")
+  ACC_1=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-1.json "$PAYEE" "$AMOUNT")
+  ACC_2=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-2.json "$PAYEE" "$AMOUNT")
+  ACC_3=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-3.json "$PAYEE" "$AMOUNT")
+  ACC_4=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-4.json "$PAYEE" "$AMOUNT")
+  ACC_5=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-5.json "$PAYEE" "$AMOUNT")
+  ACC_6=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-6.json "$PAYEE" "$AMOUNT")
+  ACC_7=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-7.json "$PAYEE" "$AMOUNT")
+  ACC_8=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-8.json "$PAYEE" "$AMOUNT")
+  ACC_9=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-9.json "$PAYEE" "$AMOUNT")
+  if [ "x$AMOUNT" != x ]; then
+    M_AMOUNT="-$AMOUNT"
+  fi
+  echo
+  echo "$DATE $PAYEE"
+  printf "  %-61s  %s\n" "$ACC_0" "$AMOUNT"
+  printf "  %-60s  %s\n" "$ACC_1" "$M_AMOUNT"
+  echo
+fi
