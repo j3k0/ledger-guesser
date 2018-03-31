@@ -20,14 +20,15 @@ const readArgv = () => {
   // fourth argument: payee
   const payee = train ? null : process.argv[4];
   const amount = train ? null : process.argv[5];
-  return {accountIndex, train, payee, amount, ledgerFile, jsonFile};
+  const currency = train ? null : process.argv[6];
+  return {accountIndex, train, payee, amount, currency, ledgerFile, jsonFile};
 };
 
 const argv = readArgv();
 
 function usage() {
   console.log("index.js", "--train", "<ledger-file>", "--index=[1-9]");
-  console.log("index.js", "--guess", "<json-file>", "<payee>", "<amount>");
+  console.log("index.js", "--guess", "<json-file>", "<payee>", "<amount>", "<currency>");
   console.log();
   console.log("Use --guess to guess the account name from the payee.");
   console.log("Use --train to train the neural network for the specified index.");
@@ -77,9 +78,5 @@ if (argv.train) {
 }
 else {
   classifier.fromJSON(require(argv.jsonFile));
-  console.log(classifier.likely(argv.payee));
+  console.log(classifier.likely(argv.payee, argv.amount, argv.currency));
 }
-
-// Train the classifier
-//transactions.forEach((transaction) => {
-//});

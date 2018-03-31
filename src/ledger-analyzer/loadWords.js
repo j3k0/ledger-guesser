@@ -1,3 +1,11 @@
+//
+// return an object:
+//
+// - indexFromWord: map "word => index"
+// - wordFromIndex: map "index => word"
+// - lastIndex: highest index value
+// - normIndex: map "word => normalized index" (float between 0 and 1)
+//
 const loadWords = (ledger) => {
   return new Promise((resolve, reject) => {
     const counts = {};
