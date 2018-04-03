@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "brain.js": "^1.0.4",
+    "brain.js": "^1.1.2",
     "ledger-parser": "^0.1.3"
   }
 }

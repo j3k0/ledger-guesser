@@ -3,6 +3,7 @@
 const Ledger = require('ledger-cli').Ledger;
 const LedgerAnalyzer = require('./src/ledger-analyzer');
 const Classifier = require('./src/classifier');
+const AmountRatio = require('./src/amount-ratio');
 const log = require('./src/log').debug;
 
 // Read process arguments
@@ -27,16 +28,16 @@ const readArgv = () => {
 const argv = readArgv();
 
 function usage() {
-  console.log("index.js", "--train", "<ledger-file>", "--index=[1-9]");
-  console.log("index.js", "--guess", "<json-file>", "<payee>", "<amount>", "<currency>");
-  console.log();
-  console.log("Use --guess to guess the account name from the payee.");
-  console.log("Use --train to train the neural network for the specified index.");
-  console.log();
-  console.log("Example usage:");
-  console.log("    ", "index.js", "--train", "journal.txt", "--index=1");
-  console.log("    ", "... wait until the neural network is fully trained based on your data.");
-  console.log();
+  console.error("index.js", "--train", "<ledger-file>", "--index=[1-9]");
+  console.error("index.js", "--guess", "<json-file>", "<payee>", "<amount>", "<currency>");
+  console.error();
+  console.error("Use --guess to guess the account name from the payee.");
+  console.error("Use --train to train the neural network for the specified index.");
+  console.error();
+  console.error("Example usage:");
+  console.error("    ", "index.js", "--train", "journal.txt", "--index=1");
+  console.error("    ", "... wait until the neural network is fully trained based on your data.");
+  console.error();
   process.exit(1);
 }
 
@@ -46,6 +47,7 @@ if (!argv.train && !argv.payee)
   usage();
 
 const classifier = new Classifier();
+const amountRatio = new AmountRatio();
 
 const train = async () => {
 
@@ -62,7 +64,11 @@ const train = async () => {
     // console.log(findAccount(accountIds, 0.5));
     // console.log(findAccount(accountIds, 1.0));
     const net = await classifier.train(ledger, argv.accountIndex, accountIds, words);
-    console.log(JSON.stringify(net.toJSON()));
+    await amountRatio.compute(ledger, argv.accountIndex);
+    console.log(JSON.stringify({
+      net: net.toJSON(),
+      amountRatio: amountRatio.toJSON(),
+    }));
     // const test = 'CDN OVH ASDADADSASDADA';
     // console.log(net.run(getInput(test)));
     // console.log(brain.likely(getInput(test), net));
@@ -77,6 +83,9 @@ if (argv.train) {
   train();
 }
 else {
-  classifier.fromJSON(require(argv.jsonFile));
-  console.log(classifier.likely(argv.payee, argv.amount, argv.currency));
+  const json = require(argv.jsonFile);
+  classifier.fromJSON(json.net);
+  amountRatio.fromJSON(json.amountRatio);
+  const account = classifier.likely(argv.payee);
+  console.log(account + '  ' + amountRatio.likely(account, argv.amount, argv.currency));
 }

@@ -19,20 +19,13 @@ class Classifier {
     this.net.fromJSON(json);
   }
 
-  likely (payee, amount, currency) {
+  likely (payee) {
     const output = this.net.run(getInput(payee.toUpperCase()), this.net);
-    let finalAmount = null;
-    if (output[K_AMOUNT_RATIO] !== undefined) {
-      if (output[K_AMOUNT_RATIO] > 0.5)
-        finalAmount = amount;
-      else
-        finalAmount = -amount;
-      delete output[K_AMOUNT_RATIO];
-    }
     const account = likely(output);
     if (account === '__empty__')
       return '';
-    return account + (finalAmount !== null ? ('  ' + finalAmount + ' ' + currency) : '');
+    else
+      return account;
   }
 
   train (ledger, accountIndex, {normIds}, {normIndex}) {

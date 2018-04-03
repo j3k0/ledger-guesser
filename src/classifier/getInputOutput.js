@@ -15,18 +15,8 @@ const getIO = (accountIndex, normIds, normIndex, entry) => {
     output['__empty__'] = 1.0;
   }
   else {
-    const firstPosting = entry.postings[0];
     const posting = entry.postings[accountIndex];
     output[posting.account] = 1.0;
-    const firstAmount = parseFloat(firstPosting.commodity.formatted);
-    const amount = parseFloat(posting.commodity.formatted);
-    if (amount == firstAmount)
-      output['__amount__'] = 1;
-    else if (amount == -firstAmount)
-      output['__amount__'] = 0;
-    // output['amount_coef'] = acc
-    // output['currency'] = 
-    // output[entry.postings[0].account] = 1.0;
   }
   return {input, output};
 }

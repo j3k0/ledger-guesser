@@ -11,6 +11,7 @@ class LedgerAnalyzer {
     const words = await loadWords(this.ledger);
     return {accountIds, words};
   }
+
 }
 
 module.exports = LedgerAnalyzer;
