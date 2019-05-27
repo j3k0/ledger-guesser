@@ -55,6 +55,17 @@ etc).
 `node index.js  --guess training.json PAYEE AMOUNT CURRENCY` will output a line
 of ledger entry.
 
+**Example**
+
+```
+$ node index.js --train journal.txt --index=0 > line-0.json
+$ node index.js --train journal.txt --index=1 > line-1.json
+$ node index.js --guess line-0.json 'GOOGLE GSUITE_ USD10.00' -10.00 USD
+Assets:Bank:Blom:Usd  -10.00 USD
+$ node index.js --guess line-1.json 'GOOGLE GSUITE_ USD10.00' -10.00 USD
+Expenses:Tools:Gsuite  10.00 USD
+```
+
 ## Contributing
 
 PRs accepted.
