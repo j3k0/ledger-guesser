@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "brain.js": "^1.1.2",
+    "ledger-cli": "^0.2.0",
     "ledger-parser": "^0.1.3"
   }
 }
