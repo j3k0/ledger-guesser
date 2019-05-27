@@ -66,6 +66,18 @@ $ node index.js --guess line-1.json 'GOOGLE GSUITE_ USD10.00' -10.00 USD
 Expenses:Tools:Gsuite  10.00 USD
 ```
 
+## With ledger-autosync
+
+For my usage, I use a forked version of `ledger-autosync` that uses
+`ledger-guesser` for guessing account names. This allows to import full CSV/OFX
+files and create a pretty accurate output.
+
+https://github.com/j3k0/ledger-autosync/tree/fovea
+
+The interesting commit is here: https://github.com/j3k0/ledger-autosync/commit/24de64d2d711199b7e0898325aceeedeb09bb596#diff-235eadfde015c04f77e02a6063e19c2cR199
+
+A proper integration is left as an exercice to the user! ;-)
+
 ## Contributing
 
 PRs accepted.
