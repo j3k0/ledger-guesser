@@ -3,6 +3,7 @@
 # ELECTRON=$(dirname $0)/../node_modules/.bin/electron
 # NODE="$ELECTRON"
 NODE="node"
+TRAINING_DIR="${TRAINING_DIR:-~}"
 
 if [ "x$1" = "x--train" ]; then
   JOURNAL="$2"
@@ -11,37 +12,37 @@ if [ "x$1" = "x--train" ]; then
     exit 1
   fi
   echo index=0
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=0 > ~/.ledger-guesser-nn-0.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=0 > "$TRAINING_DIR"/.ledger-guesser-nn-0.json
   echo index=1
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=1 > ~/.ledger-guesser-nn-1.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=1 > "$TRAINING_DIR"/.ledger-guesser-nn-1.json
   echo index=2
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=2 > ~/.ledger-guesser-nn-2.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=2 > "$TRAINING_DIR"/.ledger-guesser-nn-2.json
   echo index=3
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=3 > ~/.ledger-guesser-nn-3.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=3 > "$TRAINING_DIR"/.ledger-guesser-nn-3.json
   echo index=4
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=4 > ~/.ledger-guesser-nn-4.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=4 > "$TRAINING_DIR"/.ledger-guesser-nn-4.json
   echo index=5
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=5 > ~/.ledger-guesser-nn-5.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=5 > "$TRAINING_DIR"/.ledger-guesser-nn-5.json
   echo index=6
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=6 > ~/.ledger-guesser-nn-6.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=6 > "$TRAINING_DIR"/.ledger-guesser-nn-6.json
   echo index=7
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=7 > ~/.ledger-guesser-nn-7.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=7 > "$TRAINING_DIR"/.ledger-guesser-nn-7.json
   echo index=8
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=8 > ~/.ledger-guesser-nn-8.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=8 > "$TRAINING_DIR"/.ledger-guesser-nn-8.json
   echo index=9
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=9 > ~/.ledger-guesser-nn-9.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=9 > "$TRAINING_DIR"/.ledger-guesser-nn-9.json
   echo index=10
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=10 > ~/.ledger-guesser-nn-a.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=10 > "$TRAINING_DIR"/.ledger-guesser-nn-a.json
   echo index=11
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=11 > ~/.ledger-guesser-nn-b.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=11 > "$TRAINING_DIR"/.ledger-guesser-nn-b.json
   echo index=12
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=12 > ~/.ledger-guesser-nn-c.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=12 > "$TRAINING_DIR"/.ledger-guesser-nn-c.json
   echo index=13
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=13 > ~/.ledger-guesser-nn-d.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=13 > "$TRAINING_DIR"/.ledger-guesser-nn-d.json
   echo index=14
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=14 > ~/.ledger-guesser-nn-e.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=14 > "$TRAINING_DIR"/.ledger-guesser-nn-e.json
   echo index=15
-  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=15 > ~/.ledger-guesser-nn-f.json
+  $NODE "$(dirname $0)/index.js" --train $JOURNAL --index=15 > "$TRAINING_DIR"/.ledger-guesser-nn-f.json
 else
 
   PAYEE="$1"
@@ -51,41 +52,50 @@ else
   if [ "x$DATE" = x ]; then
     DATE="$(date +%Y/%m/%d)"
   fi
+  ACCOUNT_0="$5"
+  TRANSACTION_ID="$6"
 
   PAYEE="$(echo "$PAYEE" | awk '{print toupper($0)}')"
   echo
   echo "$DATE $PAYEE"
-  ACC_0=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-0.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  if [ ! -z "$TRANSACTION_ID" ]; then
+    echo "  ; $TRANSACTION_ID"
+  fi
+  if [ -z "$ACCOUNT_0" ]; then
+    ACC_0=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-0.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  else
+    ACC_0="$ACCOUNT_0  $AMOUNT $CURRENCY"
+  fi
   printf "  %-61s\n" "$ACC_0"
-  ACC_1=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-1.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_1=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-1.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   printf "  %-61s\n" "$ACC_1"
-  ACC_2=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-2.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_2=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-2.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_2)" ]; then printf "  %-61s\n" "$ACC_2";
-  ACC_3=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-3.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_3=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-3.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_3)" ]; then printf "  %-61s\n" "$ACC_3";
-  ACC_4=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-4.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_4=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-4.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_4)" ]; then printf "  %-61s\n" "$ACC_4";
-  ACC_5=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-5.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_5=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-5.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_5)" ]; then printf "  %-61s\n" "$ACC_5";
-  ACC_6=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-6.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_6=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-6.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_6)" ]; then printf "  %-61s\n" "$ACC_6";
-  ACC_7=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-7.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_7=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-7.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_7)" ]; then printf "  %-61s\n" "$ACC_7";
-  ACC_8=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-8.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_8=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-8.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_8)" ]; then printf "  %-61s\n" "$ACC_8";
-  ACC_9=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-9.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_9=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-9.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_9)" ]; then printf "  %-61s\n" "$ACC_9";
-  ACC_A=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-a.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_A=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-a.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_A)" ]; then printf "  %-61s\n" "$ACC_A";
-  ACC_B=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-b.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_B=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-b.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_B)" ]; then printf "  %-61s\n" "$ACC_B";
-  ACC_C=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-c.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_C=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-c.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_C)" ]; then printf "  %-61s\n" "$ACC_C";
-  ACC_D=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-d.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_D=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-d.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_D)" ]; then printf "  %-61s\n" "$ACC_D";
-  ACC_E=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-e.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_E=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-e.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_E)" ]; then printf "  %-61s\n" "$ACC_E";
-  ACC_F=$(node "$(dirname $0)/index.js" --guess ~/.ledger-guesser-nn-f.json "$PAYEE" "$AMOUNT" "$CURRENCY")
+  ACC_F=$(node "$(dirname $0)/index.js" --guess "$TRAINING_DIR"/.ledger-guesser-nn-f.json "$PAYEE" "$AMOUNT" "$CURRENCY")
   if [ ! -z "$(echo $ACC_F)" ]; then printf "  %-61s\n" "$ACC_F"; fi
   fi;fi;fi;fi;fi;fi;fi;fi;fi;fi;fi;fi;fi
   if [ "x$AMOUNT" != x ]; then

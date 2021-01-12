@@ -43,6 +43,11 @@ $ ./ledger-guesser 'GOOGLE GSUITE_ USD10.00' -10.00 USD 2019/05/21
 
 ```
 
+Note that you can change the directory where `ledger-guesser` stores training
+files by setting the `TRAINING_DIR` environment variable.
+
+Example: `export TRAINING_DIR=~/company-2`
+
 ### Lower-level usage
 
 The `./ledger-guesser` script make use of `index.js` to create 16 different
