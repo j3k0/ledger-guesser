@@ -3,7 +3,7 @@
 const Ledger = require('ledger-cli').Ledger;
 const LedgerAnalyzer = require('./src/ledger-analyzer');
 const Classifier = require('./src/classifier');
-const AmountRatio = require('./src/amount-ratio');
+// const AmountRatio = require('./src/amount-ratio');
 const log = require('./src/log').debug;
 
 // Read process arguments
@@ -20,9 +20,9 @@ const readArgv = () => {
     accountIndex = (+process.argv[4].slice(8));
   // fourth argument: payee
   const payee = train ? null : process.argv[4];
-  const amount = train ? null : process.argv[5];
-  const currency = train ? null : process.argv[6];
-  return {accountIndex, train, payee, amount, currency, ledgerFile, jsonFile};
+  // const amount = train ? null : process.argv[5];
+  // const currency = train ? null : process.argv[6];
+  return {accountIndex, train, payee/*, amount, currency*/, ledgerFile, jsonFile};
 };
 
 const argv = readArgv();
@@ -47,7 +47,7 @@ if (!argv.train && !argv.payee)
   usage();
 
 const classifier = new Classifier();
-const amountRatio = new AmountRatio();
+// const amountRatio = new AmountRatio();
 
 const train = async () => {
 
@@ -64,10 +64,10 @@ const train = async () => {
     // console.log(findAccount(accountIds, 0.5));
     // console.log(findAccount(accountIds, 1.0));
     const net = await classifier.train(ledger, argv.accountIndex, accountIds, words);
-    await amountRatio.compute(ledger, argv.accountIndex);
+    // await amountRatio.compute(ledger, argv.accountIndex);
     console.log(JSON.stringify({
       net: net.toJSON(),
-      amountRatio: amountRatio.toJSON(),
+      // amountRatio: amountRatio.toJSON(),
     }));
     // const test = 'CDN OVH ASDADADSASDADA';
     // console.log(net.run(getInput(test)));
@@ -85,7 +85,7 @@ if (argv.train) {
 else {
   const json = require(argv.jsonFile);
   classifier.fromJSON(json.net);
-  amountRatio.fromJSON(json.amountRatio);
+  // amountRatio.fromJSON(json.amountRatio);
   const account = classifier.likely(argv.payee);
-  console.log(account + '  ' + amountRatio.likely(account, argv.amount, argv.currency));
+  console.log(account);// + '  ' + amountRatio.likely(account, argv.amount, argv.currency));
 }
