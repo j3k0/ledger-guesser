@@ -51,7 +51,10 @@ const classifier = new Classifier();
 
 const train = async () => {
 
-  var ledger = new Ledger({ file: argv.ledgerFile });
+  var ledger = new Ledger({
+    file: argv.ledgerFile,
+    binary: process.env.LEDGER_BIN,
+  });
   const analyzer = new LedgerAnalyzer(ledger);
 
   try {
