@@ -5,9 +5,21 @@
 NODE="node"
 TRAINING_DIR="${TRAINING_DIR:-~}"
 
+if [ "x$1" = "x--help" ] || [ "x$1" = "x" ]; then
+  echo "Usage:"
+  echo
+  echo "  $0 --train <journal.txt file>"
+  echo "       Use the given journal file to train the guesser"
+  echo
+  echo "  $0 <payee> <amount> <currency> [date] [first account] [transaction_id]"
+  echo "       Generate a ledger entry with the provided information"
+  echo
+  exit 1
+fi
+
 if [ "x$1" = "x--train" ]; then
   JOURNAL="$2"
-  if [ "x$JOURNAL" = "x" ]; then
+  if [ "x$JOURNAL" = "x" ] || test ! -e "$JOURNAL"; then
     echo "missing journal file"
     exit 1
   fi
