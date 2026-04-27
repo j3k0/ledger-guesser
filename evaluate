@@ -79,8 +79,12 @@ def train_c(guesser, train_path, model_path):
 
 def guess_c(guesser, model_path, payee):
     r = subprocess.run([guesser, 'guess', model_path, payee],
-                       capture_output=True, text=True, check=True)
-    return r.stdout.strip()
+                       capture_output=True, text=True)
+    if r.returncode == 0:
+        return r.stdout.strip()
+    if r.returncode == 1:
+        return ''
+    raise subprocess.CalledProcessError(r.returncode, r.args, r.stdout, r.stderr)
 
 
 def train_legacy(legacy_dir, ledger_bin, train_path, model_path):
@@ -103,6 +107,7 @@ def guess_legacy(legacy_dir, model_path, payee):
 
 def evaluate(name, predict, test_txs, train_targets):
     hit = 0
+    abstain = 0
     answerable = 0
     misses = []
     for _, payee, true_acc in test_txs:
@@ -113,14 +118,23 @@ def evaluate(name, predict, test_txs, train_targets):
             pred = predict(payee)
         except subprocess.CalledProcessError as e:
             pred = f'<error: {e}>'
-        if pred == true_acc:
+        if pred == '':
+            abstain += 1
+            misses.append((payee, true_acc, '<abstain>', in_train))
+        elif pred == true_acc:
             hit += 1
         else:
             misses.append((payee, true_acc, pred, in_train))
     n = len(test_txs)
-    print(f'{name:8s}  top-1: {hit}/{n} = {hit/n:.1%}  '
-          f'(answerable: {hit}/{answerable} = {hit/answerable:.1%})'
-          if answerable else f'{name:8s}  top-1: {hit}/{n} = {hit/n:.1%}')
+    committed = n - abstain
+    parts = [f'{name:8s}  top-1: {hit}/{n} = {hit/n:.1%}']
+    if abstain:
+        parts.append(f'precision: {hit}/{committed} = {hit/committed:.1%}'
+                     if committed else 'precision: n/a')
+        parts.append(f'abstain: {abstain}')
+    if answerable:
+        parts.append(f'answerable: {hit}/{answerable} = {hit/answerable:.1%}')
+    print('  '.join(parts))
     return misses
 
 

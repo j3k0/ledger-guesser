@@ -532,8 +532,11 @@ static void model_load(Model *m, const char *path) {
 //   log P(a) + sum_{w in payee} log P(w | a)
 // with add-one smoothing: P(w|a) = (count(w,a) + 1) / (total(a) + V)
 // P(a) = tx(a) / n_tx
-static void guess(const Model *m, const char *payee, const char *model_path) {
-  (void)model_path;
+//
+// Returns 0 on a confident match (printed to stdout), 1 on abstain
+// (no payee token seen at training time — caller should route to a
+// suspense account).
+static int guess(const Model *m, const char *payee) {
   int n_acc = m->accounts.n_items;
   if (n_acc == 0) die("empty model");
 
@@ -546,13 +549,13 @@ static void guess(const Model *m, const char *payee, const char *model_path) {
   char *tokens[MAX_TOKENS];
   int n_tokens = tokenize(buf, tokens, MAX_TOKENS);
 
-  // Resolve tokens to word ids once; unknown tokens become 0 (ignored).
   int token_ids[MAX_TOKENS];
   int n_resolved = 0;
   for (int i = 0; i < n_tokens; ++i) {
     int id = strtbl_find(&m->words, tokens[i]);
     if (id) token_ids[n_resolved++] = id;
   }
+  if (n_resolved == 0) return 1;
 
   int V = m->words.n_items;
   double best_score = -INFINITY;
@@ -560,7 +563,7 @@ static void guess(const Model *m, const char *payee, const char *model_path) {
   for (int a = 1; a <= n_acc; ++a) {
     int tx = a <= m->acc_tx_cap ? m->acc_tx[a - 1] : 0;
     int tot = a <= m->acc_total_cap ? m->acc_total[a - 1] : 0;
-    if (tx == 0) continue;  // never seen as target
+    if (tx == 0) continue;
     double score = log((double)tx / (double)m->n_tx);
     double denom = log((double)(tot + V));
     for (int i = 0; i < n_resolved; ++i) {
@@ -574,6 +577,7 @@ static void guess(const Model *m, const char *payee, const char *model_path) {
   }
   if (best_acc == 0) die("no trained accounts");
   printf("%s\n", m->accounts.items[best_acc - 1]);
+  return 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -608,8 +612,7 @@ int main(int argc, char **argv) {
     model_init(&m);
     model_load(&m, argv[2]);
     if (m.n_tx == 0) die("empty model");
-    guess(&m, argv[3], argv[2]);
-    return 0;
+    return guess(&m, argv[3]);
   }
   usage();
   return 1;
