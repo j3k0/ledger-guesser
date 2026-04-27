@@ -1,0 +1,216 @@
+#!/usr/bin/env python3
+"""Evaluate ledger-guesser-c via 90/10 train/test split on a ledger journal.
+
+Pipes `ledger print --sort date` of a journal into a temp dir, splits in date
+order, trains the C guesser on the first split and measures top-1 accuracy on
+the held-out tail. Optionally compares against a legacy brain.js
+ledger-guesser if --legacy-dir is given.
+
+Usage:
+  ./evaluate                                  # qonto.txt, 90/10
+  ./evaluate --journal ../stripe.txt
+  ./evaluate --legacy-dir ~/Documents/Accounting/ledger-guesser
+  ./evaluate --split 0.8 --show-errors 20 --keep
+"""
+
+import argparse
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+DATE_RE = re.compile(r'^\d{4}[/-]\d{2}[/-]\d{2}\s')
+
+
+def parse_transactions(text):
+    block = []
+    for line in text.splitlines():
+        if line.strip() == "":
+            if block:
+                yield from _emit(block)
+                block = []
+        else:
+            block.append(line)
+    if block:
+        yield from _emit(block)
+
+
+def _emit(block):
+    if not DATE_RE.match(block[0]):
+        return
+    payee = _extract_payee(block[0])
+    accounts = []
+    for line in block[1:]:
+        if not (line.startswith(' ') or line.startswith('\t')):
+            continue
+        s = line.lstrip()
+        if not s or s.startswith(';'):
+            continue
+        m = re.match(r'(.*?)(?:  |\t|$)', s)
+        if m:
+            name = m.group(1).strip()
+            if name:
+                accounts.append(name)
+    if len(accounts) >= 2:
+        yield (block, payee, accounts[1])
+
+
+def _extract_payee(header):
+    rest = header[10:].lstrip()
+    if rest[:1] in '*!':
+        rest = rest[1:].lstrip()
+    i = rest.find('  ;')
+    if i >= 0:
+        rest = rest[:i]
+    return rest.rstrip()
+
+
+def write_journal(path, txs):
+    with open(path, 'w') as f:
+        for block, _, _ in txs:
+            f.write('\n'.join(block) + '\n\n')
+
+
+def train_c(guesser, train_path, model_path):
+    subprocess.run([guesser, 'train', train_path, model_path], check=True)
+
+
+def guess_c(guesser, model_path, payee):
+    r = subprocess.run([guesser, 'guess', model_path, payee],
+                       capture_output=True, text=True, check=True)
+    return r.stdout.strip()
+
+
+def train_legacy(legacy_dir, ledger_bin, train_path, model_path):
+    env = {**os.environ, 'LEDGER_BIN': ledger_bin}
+    with open(model_path, 'w') as out:
+        subprocess.run(
+            ['node', os.path.join(legacy_dir, 'index.js'),
+             '--train', train_path, '--index=1'],
+            check=True, stdout=out, stderr=subprocess.DEVNULL,
+            cwd=legacy_dir, env=env)
+
+
+def guess_legacy(legacy_dir, model_path, payee):
+    r = subprocess.run(
+        ['node', os.path.join(legacy_dir, 'index.js'),
+         '--guess', model_path, payee, '0', 'EUR'],
+        capture_output=True, text=True, check=True, cwd=legacy_dir)
+    return r.stdout.strip()
+
+
+def evaluate(name, predict, test_txs, train_targets):
+    hit = 0
+    answerable = 0
+    misses = []
+    for _, payee, true_acc in test_txs:
+        in_train = true_acc in train_targets
+        if in_train:
+            answerable += 1
+        try:
+            pred = predict(payee)
+        except subprocess.CalledProcessError as e:
+            pred = f'<error: {e}>'
+        if pred == true_acc:
+            hit += 1
+        else:
+            misses.append((payee, true_acc, pred, in_train))
+    n = len(test_txs)
+    print(f'{name:8s}  top-1: {hit}/{n} = {hit/n:.1%}  '
+          f'(answerable: {hit}/{answerable} = {hit/answerable:.1%})'
+          if answerable else f'{name:8s}  top-1: {hit}/{n} = {hit/n:.1%}')
+    return misses
+
+
+def main():
+    here = os.path.dirname(os.path.abspath(__file__))
+    compta = os.path.dirname(here)
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--journal', default=os.path.join(compta, 'qonto.txt'))
+    ap.add_argument('--split', type=float, default=0.9)
+    ap.add_argument('--guesser', default=os.path.join(here, 'ledger-guesser-c'))
+    ap.add_argument('--ledger-bin', default='/opt/homebrew/bin/ledger')
+    ap.add_argument('--legacy-dir', default=None,
+                    help='Directory of legacy brain.js ledger-guesser')
+    ap.add_argument('--show-errors', type=int, default=10)
+    ap.add_argument('--keep', action='store_true',
+                    help='Keep tmp dir for inspection')
+    args = ap.parse_args()
+
+    if not os.path.exists(args.guesser):
+        sys.exit(f'guesser binary not found: {args.guesser}')
+    if not os.path.exists(args.journal):
+        sys.exit(f'journal not found: {args.journal}')
+
+    tmp = tempfile.mkdtemp(prefix='eval-guesser-')
+    try:
+        all_path = os.path.join(tmp, 'all.txt')
+        train_path = os.path.join(tmp, 'train.txt')
+        test_path = os.path.join(tmp, 'test.txt')
+        c_model = os.path.join(tmp, 'c-model.tsv')
+
+        with open(all_path, 'w') as f:
+            subprocess.run([args.ledger_bin, '-f', args.journal,
+                            'print', '--sort', 'date'],
+                           check=True, stdout=f)
+
+        with open(all_path) as f:
+            txs = list(parse_transactions(f.read()))
+
+        n = len(txs)
+        if n < 10:
+            sys.exit(f'too few transactions: {n}')
+        cut = int(n * args.split)
+        train_txs = txs[:cut]
+        test_txs = txs[cut:]
+        train_targets = {t for _, _, t in train_txs}
+
+        write_journal(train_path, train_txs)
+        write_journal(test_path, test_txs)
+
+        print(f'tmp: {tmp}', file=sys.stderr)
+        print(f'transactions: {n}  train: {len(train_txs)}  '
+              f'test: {len(test_txs)}  unique-targets-in-train: '
+              f'{len(train_targets)}', file=sys.stderr)
+
+        train_c(args.guesser, train_path, c_model)
+        c_misses = evaluate('C', lambda p: guess_c(args.guesser, c_model, p),
+                            test_txs, train_targets)
+
+        legacy_misses = None
+        if args.legacy_dir:
+            legacy_model = os.path.join(tmp, 'legacy-model.json')
+            print('training legacy...', file=sys.stderr)
+            train_legacy(args.legacy_dir, args.ledger_bin,
+                         train_path, legacy_model)
+            legacy_misses = evaluate(
+                'legacy',
+                lambda p: guess_legacy(args.legacy_dir, legacy_model, p),
+                test_txs, train_targets)
+
+        if args.show_errors:
+            _print_misses('C', c_misses, args.show_errors)
+            if legacy_misses is not None:
+                _print_misses('legacy', legacy_misses, args.show_errors)
+    finally:
+        if args.keep:
+            print(f'tmp kept at: {tmp}', file=sys.stderr)
+        else:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _print_misses(name, misses, k):
+    print(f'\n{name} mismatches (first {k}):')
+    for payee, true_acc, pred, in_train in misses[:k]:
+        flag = '' if in_train else '  [target unseen in train]'
+        print(f'  payee : {payee}')
+        print(f'  true  : {true_acc}{flag}')
+        print(f'  pred  : {pred}')
+        print()
+
+
+if __name__ == '__main__':
+    main()
