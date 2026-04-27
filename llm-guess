@@ -11,8 +11,12 @@
 #         empty/malformed response).
 #
 # Config (env vars):
-#   OLLAMA_BIN     path to the ollama binary (default: ollama)
+#   LLM_PROVIDER   "ollama" (default) or "claude"
+#   OLLAMA_BIN     path to ollama (default: ollama)
 #   OLLAMA_MODEL   model to query (default: gemma4:e4b)
+#   OLLAMA_THINK   --think value: false / low / medium / high (default: high)
+#   CLAUDE_BIN     path to claude (default: claude)
+#   CLAUDE_MODEL   model alias or full name (default: leave to claude's default)
 #   LLM_DISABLED   set to non-empty to short-circuit and exit 1
 
 set -u
@@ -29,22 +33,31 @@ PAYEE="$3"
 AMOUNT="$4"
 CURRENCY="$5"
 
+LLM_PROVIDER="${LLM_PROVIDER:-ollama}"
 OLLAMA_BIN="${OLLAMA_BIN:-ollama}"
 OLLAMA_MODEL="${OLLAMA_MODEL:-deepseek-v4-pro:cloud}"
+OLLAMA_THINK="${OLLAMA_THINK:-high}"
+CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 
-if ! command -v "$OLLAMA_BIN" >/dev/null 2>&1; then exit 1; fi
 if [ ! -r "$ACCOUNTS_FILE" ]; then exit 1; fi
+case "$LLM_PROVIDER" in
+  ollama) command -v "$OLLAMA_BIN" >/dev/null 2>&1 || exit 1 ;;
+  claude) command -v "$CLAUDE_BIN" >/dev/null 2>&1 || exit 1 ;;
+  *) echo "llm-guess: unknown LLM_PROVIDER '$LLM_PROVIDER'" 1>&2; exit 2 ;;
+esac
 
 DIRECTION="money IN"
 if [ "${AMOUNT:0:1}" = "-" ]; then DIRECTION="money OUT"; fi
 
-PROMPT=$(cat <<EOF
+ACCOUNTS_LIST="$(cat "$ACCOUNTS_FILE")"
+
+IFS='' read -r -d '' PROMPT <<EOF || true
 You are a bookkeeping assistant for a French SASU (Iaptic) using the Ledger CLI for double-entry bookkeeping with French PCG (Plan Comptable Général) account names. You must classify ONE bank transaction.
 
 The bank-side posting is already filled in as "Tresorerie:Banque:Qonto (512)". Your job is to pick the COUNTERPART account.
 
 Existing chart of accounts (use exact spelling when one of these matches):
-$(cat "$ACCOUNTS_FILE")
+$ACCOUNTS_LIST
 
 Transaction to classify:
   Date:      $DATE
@@ -52,21 +65,33 @@ Transaction to classify:
   Amount:    $AMOUNT $CURRENCY  ($DIRECTION)
 
 Rules:
-- If a clearly matching account exists in the list above, use it EXACTLY as written (same spelling, same PCG code in parentheses).
-- Otherwise propose a NEW account name following the same convention, e.g. "Comptes:Fournisseurs:VendorName (401)" for a new supplier, "Charges:..." for new expenses with the relevant 6xx PCG code.
-- Money OUT = supplier / expense / withdrawal / transfer-out. Money IN = revenue / refund / transfer-in / capital contribution.
-- Pick the most specific reasonable account, not a generic catch-all.
+1. If a clearly matching account exists in the list above, use it EXACTLY as written. Match by vendor name embedded in the account: "Comptes:Fournisseurs:Cloudflare (401)" matches a payee "CLOUDFLARE (CARD)".
+2. "Charges:Frais de fonctionnement:Frais bancaires (627):Qonto" is ONLY for Qonto's own service charges, when the payee is "QONTO" or "QONTO FX_CARD". NEVER use it for any other vendor.
+3. For a card payment to a third-party vendor that does NOT already have an existing account, DEFAULT to "Comptes:Fournisseurs:<VendorName> (401)" with the vendor name capitalised properly (e.g. "Cloudflare", not "CLOUDFLARE"). This applies even to SaaS, cloud, internet, AI, or hosting providers — they go to Fournisseurs (401), not to any Charges sub-account.
+4. PCG codes must be REAL three-digit numbers (e.g. 401, 606, 613, 627). NEVER write placeholders like (6xx), (4xx), or (xxx).
+5. Money OUT (negative amount) = supplier / expense / withdrawal / transfer-out. Money IN (positive amount) = revenue / refund / transfer-in / capital contribution.
 
 Reply with ONLY the full account name on a single line. No explanation, no quotes, no markdown.
 EOF
-)
 
-RESULT="$(printf '%s' "$PROMPT" | TERM=dumb "$OLLAMA_BIN" run \
-    --think=false --hidethinking --nowordwrap "$OLLAMA_MODEL" 2>/dev/null \
+if [ "$LLM_PROVIDER" = "claude" ]; then
+  CLAUDE_ARGS=(-p --output-format text)
+  if [ -n "${CLAUDE_MODEL:-}" ]; then
+    CLAUDE_ARGS+=(--model "$CLAUDE_MODEL")
+  fi
+  RAW="$(printf '%s' "$PROMPT" | "$CLAUDE_BIN" "${CLAUDE_ARGS[@]}" 2>/dev/null)"
+else
+  RAW="$(printf '%s' "$PROMPT" | TERM=dumb "$OLLAMA_BIN" run \
+    --think="$OLLAMA_THINK" --hidethinking --nowordwrap \
+    "$OLLAMA_MODEL" 2>/dev/null)"
+fi
+
+RESULT="$(printf '%s' "$RAW" \
   | grep -v '^[[:space:]]*$' \
   | head -1 \
-  | tr -d '\r"`' \
+  | tr -d '\r"' \
   | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+RESULT="${RESULT//\`/}"
 
 if [ -z "$RESULT" ]; then exit 1; fi
 # Sanity: a real account name must contain ":"
