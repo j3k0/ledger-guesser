@@ -215,6 +215,8 @@ typedef struct {
   int acc_total_cap;
   int *acc_tx;       // per-account transaction count (for priors); 1-based
   int acc_tx_cap;
+  int *word_df;      // per-word document frequency (# tx containing the word); 1-based
+  int word_df_cap;
   int n_tx;
   WACMap wac;
 } Model;
@@ -226,6 +228,8 @@ static void model_init(Model *m) {
   m->acc_total_cap = 0;
   m->acc_tx = NULL;
   m->acc_tx_cap = 0;
+  m->word_df = NULL;
+  m->word_df_cap = 0;
   m->n_tx = 0;
   wac_init(&m->wac);
 }
@@ -362,10 +366,19 @@ static void train_tx(Model *m, const char *payee, char **accounts, int n_account
 
   char *tokens[MAX_TOKENS];
   int n_tokens = tokenize(buf, tokens, MAX_TOKENS);
+  int seen_ids[MAX_TOKENS];
+  int n_seen = 0;
   for (int i = 0; i < n_tokens; ++i) {
     int w_id = strtbl_intern(&m->words, tokens[i]);
     wac_inc(&m->wac, w_id, a_id, 1);
     m->acc_total[a_id - 1]++;
+    int dup = 0;
+    for (int j = 0; j < n_seen; ++j) if (seen_ids[j] == w_id) { dup = 1; break; }
+    if (!dup) {
+      ensure_int_array(&m->word_df, &m->word_df_cap, w_id);
+      m->word_df[w_id - 1]++;
+      seen_ids[n_seen++] = w_id;
+    }
   }
 }
 
@@ -445,6 +458,12 @@ static void model_save(const Model *m, const char *path) {
     fprintf(f, "A\t%s\t%d\t%d\n", m->accounts.items[i], tx, tot);
   }
 
+  for (int i = 0; i < m->words.n_items; ++i) {
+    int id = i + 1;
+    int df = id <= m->word_df_cap ? m->word_df[id - 1] : 0;
+    fprintf(f, "D\t%s\t%d\n", m->words.items[i], df);
+  }
+
   for (size_t i = 0; i < m->wac.size; ++i) {
     uint64_t k = m->wac.e[i].key;
     if (!k) continue;
@@ -498,6 +517,21 @@ static void model_load(Model *m, const char *path) {
       ensure_int_array(&m->acc_total, &m->acc_total_cap, a_id);
       m->acc_tx[a_id - 1] = tx;
       m->acc_total[a_id - 1] = tot;
+      continue;
+    }
+    if (line[0] == 'D') {
+      // D\t<word>\t<df>
+      char *p = line + 1;
+      if (*p != '\t') continue;
+      ++p;
+      char *word = p;
+      char *t1 = strchr(p, '\t');
+      if (!t1) continue;
+      *t1 = 0;
+      int df = atoi(t1 + 1);
+      int w_id = strtbl_intern(&m->words, word);
+      ensure_int_array(&m->word_df, &m->word_df_cap, w_id);
+      m->word_df[w_id - 1] = df;
       continue;
     }
     if (line[0] == 'W') {
@@ -558,24 +592,46 @@ static int guess(const Model *m, const char *payee) {
   if (n_resolved == 0) return 1;
 
   int V = m->words.n_items;
-  double best_score = -INFINITY;
+  double *scores = xcalloc(n_acc + 1, sizeof(double));
+  double max_score = -INFINITY;
   int best_acc = 0;
   for (int a = 1; a <= n_acc; ++a) {
     int tx = a <= m->acc_tx_cap ? m->acc_tx[a - 1] : 0;
     int tot = a <= m->acc_total_cap ? m->acc_total[a - 1] : 0;
-    if (tx == 0) continue;
-    double score = log((double)tx / (double)m->n_tx);
+    if (tx == 0) {
+      scores[a] = -INFINITY;
+      continue;
+    }
+    double s = log((double)tx / (double)m->n_tx);
     double denom = log((double)(tot + V));
     for (int i = 0; i < n_resolved; ++i) {
       int c = wac_get(&m->wac, token_ids[i], a);
-      score += log((double)(c + 1)) - denom;
+      s += log((double)(c + 1)) - denom;
     }
-    if (score > best_score) {
-      best_score = score;
+    scores[a] = s;
+    if (s > max_score) {
+      max_score = s;
       best_acc = a;
     }
   }
-  if (best_acc == 0) die("no trained accounts");
+  if (best_acc == 0) {
+    free(scores);
+    die("no trained accounts");
+  }
+
+  // Confidence-margin abstention: abstain when the posterior probability
+  // of the top account (softmax over per-account log-scores) is below a
+  // threshold. Default 30%; override with CONF_PCT env var.
+  double conf_pct = 30.0;
+  const char *env = getenv("CONF_PCT");
+  if (env && *env) conf_pct = atof(env);
+  double sum_exp = 0.0;
+  for (int a = 1; a <= n_acc; ++a)
+    if (scores[a] > -INFINITY) sum_exp += exp(scores[a] - max_score);
+  double log_top_prob = -log(sum_exp);  // = max_score - logsumexp(scores)
+  free(scores);
+  if (log_top_prob < log(conf_pct / 100.0)) return 1;
+
   printf("%s\n", m->accounts.items[best_acc - 1]);
   return 0;
 }
