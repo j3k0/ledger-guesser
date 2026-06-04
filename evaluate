@@ -77,9 +77,12 @@ def train_c(guesser, train_path, model_path):
     subprocess.run([guesser, 'train', train_path, model_path], check=True)
 
 
-def guess_c(guesser, model_path, payee):
+def guess_c(guesser, model_path, payee, idf_mode=None):
+    env = {**os.environ}
+    if idf_mode:
+        env['IDF_MODE'] = idf_mode
     r = subprocess.run([guesser, 'guess', model_path, payee],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, env=env)
     if r.returncode == 0:
         return r.stdout.strip()
     if r.returncode == 1:
@@ -150,6 +153,8 @@ def main():
     ap.add_argument('--legacy-dir', default=None,
                     help='Directory of legacy brain.js ledger-guesser')
     ap.add_argument('--show-errors', type=int, default=10)
+    ap.add_argument('--idf-mode', default=None,
+                    help='IDF_MODE env var: log (default), raw, none')
     ap.add_argument('--keep', action='store_true',
                     help='Keep tmp dir for inspection')
     args = ap.parse_args()
@@ -191,7 +196,9 @@ def main():
               f'{len(train_targets)}', file=sys.stderr)
 
         train_c(args.guesser, train_path, c_model)
-        c_misses = evaluate('C', lambda p: guess_c(args.guesser, c_model, p),
+        idf = args.idf_mode
+        c_misses = evaluate('C', lambda p: guess_c(args.guesser, c_model, p,
+                                                     idf_mode=idf),
                             test_txs, train_targets)
 
         legacy_misses = None
